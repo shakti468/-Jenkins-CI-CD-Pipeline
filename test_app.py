@@ -1,7 +1,12 @@
+import pytest
 from app.main import app
 
-def test_home():
-    client = app.test_client()
+@pytest.fixture
+def client():
+    with app.test_client() as client:
+        yield client
+
+def test_home(client):
     response = client.get('/')
     assert response.status_code == 200
-    assert b"Hello, CI/CD" in response.data
+    assert response.data == b"Hello, Jenkins CI/CD!"
