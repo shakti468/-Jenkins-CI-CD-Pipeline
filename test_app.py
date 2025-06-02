@@ -1,12 +1,6 @@
-import pytest
-from app.main import app
+from app import app
 
-@pytest.fixture
-def client():
-    with app.test_client() as client:
-        yield client
-
-def test_home(client):
-    response = client.get('/')
+def test_home():
+    response = app.test_client().get('/')
     assert response.status_code == 200
-    assert response.data == b"Hello, Jenkins CI/CD!"
+    assert b"Hello, Flask CI/CD is running successfully on EC2 with Jenkins and Nginx!" in response.data
