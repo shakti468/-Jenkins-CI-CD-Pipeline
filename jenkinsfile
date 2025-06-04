@@ -1,0 +1,82 @@
+pipeline {
+    agent any
+
+    environment {
+        REPO_URL = 'https://github.com/shakti468/-Jenkins-CI-CD-Pipeline.git'
+        BRANCH = 'main'
+        EC2_HOST = '65.0.109.101'
+        EC2_USER = 'ubuntu'
+        SSH_KEY_ID = 'shakti-ec2' // Your Jenkins SSH credentials ID
+    }
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                git branch: "${BRANCH}", url: "${REPO_URL}"
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                '''
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh '''
+                    . venv/bin/activate
+                    pytest
+                '''
+            }
+        }
+
+        stage('Deploy to EC2') {
+            steps {
+                sshagent([env.SSH_KEY_ID]) {
+                    sh '''
+ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << 'ENDSSH'
+    # Stop existing Flask app
+    pkill -f app.py || true
+
+    # Remove old app, clone fresh
+    rm -rf /home/ubuntu/app
+    git clone https://github.com/shakti468/-Jenkins-CI-CD-Pipeline.git /home/ubuntu/app
+
+    cd /home/ubuntu/app
+
+    # Set up virtual environment & install dependencies
+    python3 -m venv venv
+    . venv/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+
+    # Run Flask app in background inside venv
+    nohup bash -c '. venv/bin/activate && python3 app.py' > flask.log 2>&1 &
+
+    echo "✅ Flask app started on EC2"
+ENDSSH
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            mail to: 'shaktiranjanm827@gmail.com',
+                 subject: '✅ Jenkins Build Succeeded',
+                 body: 'Your Flask app was built and deployed successfully.'
+        }
+        failure {
+            mail to: 'shaktiranjanm827@gmail.com',
+                 subject: '❌ Jenkins Build Failed',
+                 body: 'Build or deployment failed. Please check Jenkins logs.'
+        }
+    }
+}
